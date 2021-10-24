@@ -9,34 +9,62 @@ class Functions
     {
         $this->con = $con;
     }
-    public function newPassword($pw1, $pw2)
+
+    public function checkToken()
     {
         if (empty($_GET['token'])) {
             echo 'Aucun token n\'a été spécifié';
             exit;
         }
-        if (empty($row)) {
-            header("Location:error.php");
-            exit;
-        }
         $query = $this->con->prepare('SELECT reinitialisation_tentative_date FROM utilisateur WHERE token = ?');
-        $query->bindValue(1, $_GET['token']);
+        $query->bindValue(1, $_GET["token"]);
         $query->execute();
         $row = $query->fetch(PDO::FETCH_ASSOC);
+
         if (empty($row)) {
             header("Location:error.php");
             exit;
         }
-        $tokenDate = strtotime('+2 seconds', strtotime($row['reinitialisation_tentative_date']));
+        $tokenDate = strtotime('+49 seconds', strtotime($row['reinitialisation_tentative_date']));
         $todayDate = time();
         if ($tokenDate < $todayDate) {
-            header("Location:login.php");
-        }
-        if ($this->validatePasswords($pw1, $pw2)) {
-            echo "Error";
+            echo "Token Expiré";
+            exit;
         }
 
     }
+
+    public function selectUserLogin($email, $password)
+    {
+        $success = $this->login($email, $password);
+        $sql = "SELECT * FROM utilisateur WHERE email=:em";
+        $query = $this->con->prepare($sql);
+        $query->bindValue(':em', $email);
+        $query->execute();
+        $id = $query->fetch();
+        if ($success) {
+            // Store session
+            $_SESSION["userLoggedIn"] = $email;
+            header("Location: index.php?idUtilisateur=" . $id['idUtilisateur'] . "");
+        }
+    }
+    public function selectUserRegister($username, $email, $mdp1, $mdp2, $sexe, $titre)
+    {
+        $success = $this->register($username, $email, $mdp1, $mdp2, $sexe, $titre);
+
+        $sql = "SELECT idUtilisateur FROM utilisateur WHERE email=:em";
+        $query = $this->con->prepare($sql);
+        $query->bindValue(':em', $email);
+        $query->execute();
+        $id = $query->fetch();
+
+        if ($success) {
+            // Store session
+            $_SESSION["userLoggedIn"] = $email;
+            header("Location: index.php?idUtilisateur=" . $id['email'] . "");
+        }
+    }
+
     public function reinitialiserMdp($em, $pw1, $pw2)
     {
         $this->validatePasswords($pw1, $pw2);
@@ -87,7 +115,7 @@ class Functions
         $query = $this->con->prepare("SELECT * FROM utilisateur WHERE email=:em");
         $query->bindValue(":em", $em);
         $query->execute();
-        $query2 = $this->con->prepare("INSERT INTO connexion (id_adresse) VALUES ('$ip')");
+        $query2 = $this->con->prepare("INSERT INTO connexion (ip) VALUES ('$ip')");
         $query2->execute();
         $accExist = $query->fetch(PDO::FETCH_OBJ);
         if ($accExist != null) {
@@ -157,7 +185,7 @@ class Functions
 
     private function validatePasswords($pw, $pw2)
     {
-        $regex = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$";
+        $regex = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$^";
         if ($pw != $pw2) {
             array_push($this->errorArray, Constants::$passwordsDontMatch);
             return;
